@@ -61,6 +61,9 @@ abstract class InMeetClientEvents {
   // /// for cloud recording starting time error will trigger using this method.
   // void onCloudRecordingError();
 
+// this listener will trigger for the hand raise
+  void onHandRaise(String peerId, bool isHandRaised);
+
   void onScreenShareRequest(String peerId);
 
   /// After participant start screen sharing, for that one new inMeetPeerModel will create in that render will come that will use for showing the coming screen share
@@ -74,6 +77,16 @@ abstract class InMeetClientEvents {
 
   /// on active speaker change
   void onActiveSpeakerChange(InMeetPeerModel peer, double volume);
+
+  /// on requesting for audio or video from the host side.
+
+  void onRequestAudioOrVideo(bool isRequestedAudio);
+
+  /// this will trigger when host is restricting the audio or video.
+  void onHostAddRestrictionForAudioOrVideo(bool isAudioRestricted);
+
+  /// this event will trigger on host removing the restriction.
+  void onHostRemovedRestrictionForAudioOrVideo(bool isAudioRestricted);
 
   /// After connecting with the server this onSocketConnect method will trigger.
   void onSocketConnect();

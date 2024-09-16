@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:io';
 
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
@@ -29,13 +28,14 @@ class InmeetSocketIO {
     if (_socket != null) {
       _socket!.dispose();
     }
-    final socketUri =
-        "$socketUrl?peerId=$peerId&roomId=$roomID&projectId=$projectId&tp=false&_uid=${getUid(userId)}=&record=false&mDeviceId=null&mDeviceType=null&displayName=$userName&breakoutRooms=$breakoutRooms&breakoutRoomId=$breakoutRoomId";
-    _socket = IO.io(socketUri, <String, dynamic>{
-      'transports': ['websocket', 'polling'],
-    });
+    final socketUri = "$socketUrl?peerId=$peerId&roomId=$roomID&projectId=$projectId&tp=false&_uid=${getUid(userId)}=&record=false&mDeviceId=null&mDeviceType=null&displayName=$userName&breakoutRooms=$breakoutRooms&breakoutRoomId=$breakoutRoomId";
+    _socket = IO.io(
+        socketUri,
+        <String, dynamic>{
+          'transports': ['websocket', 'polling'],
+        });
     _socket!.io.uri = socketUri;
-    _shouldDispose = false;
+        _shouldDispose = false;
 
     _socket?.onConnectError((data) => log("data onconnecterror $data"));
     _socket?.onConnectTimeout((data) => log("data onconnection timeout $data"));

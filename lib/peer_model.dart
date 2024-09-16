@@ -11,6 +11,7 @@ class Peer {
   RTCVideoRenderer? renderer; // renderer is using for showing the remote video
   String? audioId;
   Set<ParticipantRoles>? roles;
+  bool? isHandRaised;
 
   Peer(
       {this.id,
@@ -20,5 +21,30 @@ class Peer {
       this.renderer,
       this.videoPaused,
       this.roles,
-      this.isScreenSharing});
+      this.isScreenSharing,
+      this.isHandRaised});
+
+  Peer copyWith({
+    bool? audioMuted,
+    bool? videoPaused,
+    bool? isScreenSharing,
+    String? displayName,
+    String? id,
+    RTCVideoRenderer? renderer,
+    String? audioId,
+    Set<ParticipantRoles>? roles,
+    bool? isHandRaised,
+  }) {
+    return Peer(
+      audioId: audioId ?? this.audioId,
+      audioMuted: audioMuted ?? this.audioMuted,
+      videoPaused: videoPaused ?? this.videoPaused,
+      isScreenSharing: isScreenSharing ?? this.isScreenSharing,
+      displayName: displayName ?? this.displayName,
+      id: id ?? this.id,
+      renderer: renderer ?? this.renderer,
+      roles: roles ?? this.roles,
+      isHandRaised: isHandRaised ?? this.isHandRaised,
+    );
+  }
 }

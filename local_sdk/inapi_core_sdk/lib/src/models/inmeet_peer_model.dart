@@ -12,6 +12,7 @@ class InMeetPeerModel {
   final String userId;
   RTCVideoRenderer? renderer;
   final String? audioId;
+  final bool raisedHand;
 
   InMeetPeerModel(
       {this.audio,
@@ -23,7 +24,8 @@ class InMeetPeerModel {
       required this.audioMuted,
       required this.videoPaused,
       required this.audioId,
-      required this.userId});
+      required this.userId,
+      this.raisedHand = false});
 
   InMeetPeerModel.fromMap(Map data)
       : id = data['id'],
@@ -34,6 +36,7 @@ class InMeetPeerModel {
                 ? {ParticipantRoles.moderator}
                 : {ParticipantRoles.presenter},
         userId = data['uid'] ?? "",
+        raisedHand = data['raisedHand'],
         audio = null,
         video = null,
         audioMuted = true,
@@ -56,7 +59,8 @@ class InMeetPeerModel {
       bool? audioMuted,
       bool? isExtraVideo,
       bool? videoPaused,
-      String? userId}) {
+      String? userId,
+      bool? raisedHand}) {
     return InMeetPeerModel(
         audio: audio ?? this.audio,
         video: video ?? this.video,
@@ -67,7 +71,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: audioMuted ?? this.audioMuted,
         audioId: audioId,
-        userId: userId ?? this.userId);
+        userId: userId ?? this.userId,
+        raisedHand: raisedHand ?? this.raisedHand);
   }
 
   InMeetPeerModel removeAudio({
@@ -88,7 +93,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: audioMuted ?? this.audioMuted,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 
   InMeetPeerModel removeVideo({
@@ -110,7 +116,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: audioMuted ?? this.audioMuted,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 
   InMeetPeerModel removeAudioAndRenderer({
@@ -130,7 +137,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: audioMuted ?? this.audioMuted,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 
   InMeetPeerModel removeVideoAndRenderer({
@@ -150,7 +158,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: audioMuted ?? this.audioMuted,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 
   InMeetPeerModel audioStatusChange(
@@ -170,7 +179,8 @@ class InMeetPeerModel {
         id: id ?? this.id,
         audioMuted: muted ?? audioMuted,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 
   InMeetPeerModel setAudioId(dynamic audioId) {
@@ -184,6 +194,7 @@ class InMeetPeerModel {
         audioMuted: audioMuted,
         videoPaused: video != null ? video!.paused : true,
         audioId: audioId,
-        userId: userId);
+        userId: userId,
+        raisedHand: raisedHand);
   }
 }

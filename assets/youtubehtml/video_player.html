@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja" style="width:100%;height:100%;overflow:hidden">
+<head>
+    <meta charset="utf-8"/>
+    <title>Live</title>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.3/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.3/plyr.js"></script>
+    <script>
+        let player;
+
+        function reset_order() {
+            document.title = "Youtube"
+        }
+
+        function set_source(source_id, watermark_str, font_size) {
+            if (watermark_str) {
+                var thisMark = document.getElementById('plyr_watermark');
+                thisMark.innerHTML = watermark_str;
+                if (font_size) {
+                    thisMark.style.fontSize = font_size + "px";
+                }
+            }
+
+            const iframe = document.querySelector('#player iframe');
+            iframe.src = "https://www.youtube.com/embed/" + source_id + "?iv_load_policy=3&amp;modestbranding=0&amp;playsinline=1&amp;showinfo=0&amp;rel=0&amp;enablejsapi=1"
+            player = new Plyr('#player', {
+                autoplay: true,
+                resetOnEnd: true,
+                ratio: '16:9'
+            });
+            player.on('ready', (event) => {
+                const fullscreenButton = document.querySelector('[data-plyr="fullscreen"]');
+                fullscreenButton.onclick = (e) => {
+                    document.title = "fullscreen"
+                }
+            });
+        }
+
+        window.addEventListener("load", (event) => {
+            set_source('{SOURCE_ID}', 'DTH LMS', 25);  // The {SOURCE_ID} will be replaced dynamically
+            document.title = "load";
+        });
+    </script>
+</head>
+<body style="width:100%;height:100%;margin:0">
+    <div class="plyr__video-embed" id="player" style="width:100%;height:100%;margin:0">
+        <iframe style="width:100%;height:100%;margin:0"
+            allowtransparency
+            allowfullscreen="0"
+            allow="autoplay"
+        ></iframe>
+        <div class="YTPOverlay" style="position: absolute; top: 0px; left: 0px; width: 100%; height: 100%;">
+            <div id="plyr_watermark" style="position: absolute; color: white; -webkit-text-stroke: 1px #111111; font-size: 25px; font-weight: bold; opacity: 0.5;">Your Watermark</div>
+        </div>
+    </div>
+    <script>
+        function getRandomNumber(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function moveWatermark() {
+            var winWidth = window.innerWidth;
+            var winHeight = window.innerHeight;
+
+            var thisMark = document.getElementById('plyr_watermark');
+            // get random numbers for each element
+            var randomTop = getRandomNumber(0, winHeight - 50);
+            var randomLeft = getRandomNumber(0, winWidth - 130);
+
+            // update top and left position
+            thisMark.style.top = randomTop +"px";
+            thisMark.style.left = randomLeft +"px";
+        }
+
+        setInterval(moveWatermark, 5000);
+    </script>
+</body>
+</html>

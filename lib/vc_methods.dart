@@ -1,8 +1,7 @@
 import 'dart:developer';
+import 'package:abc/vc_controller.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:inapi_core_sdk/inapi_core_sdk.dart';
-
-import 'vc_controller.dart';
 
 class VcEventsAndMethods extends InMeetClientEvents {
   final VcController vcController;
@@ -61,7 +60,7 @@ class VcEventsAndMethods extends InMeetClientEvents {
   void onRoomJoiningFailed(e) {}
 
   @override
-  void onRoomJoiningSuccess(peers, selfRole, hostMail) {
+  void onRoomJoiningSuccess(peers, selfRole, hostId) {
     vcController.joinRoomSuccess(peers, selfRole);
   }
 
@@ -149,16 +148,6 @@ class VcEventsAndMethods extends InMeetClientEvents {
     vcController.updateSelfRoleList(roles);
   }
 
-  // @override
-  // void onCloudRecordingError() {
-  //   // TODO: implement onCloudRecordingError
-  // }
-
-  // @override
-  // void onCloudRecordingUpdate(isCloudRecording) {
-  //   // TODO: implement onCloudRecordingUpdate
-  // }
-
   @override
   void onBreakoutRoomEnd() {
     vcController.joinBreakoutRoom('mainRoom');
@@ -209,5 +198,25 @@ class VcEventsAndMethods extends InMeetClientEvents {
       vcController.inMeetClient
           .giveRoleToParticipant(peerId, ParticipantRoles.presenter);
     }
+  }
+
+  @override
+  void onHandRaise(String peerId, bool isHandRaised) {
+    vcController.raisedHand(peerId, isHandRaised);
+  }
+
+  @override
+  void onHostRemovedRestrictionForAudioOrVideo(bool isAudioRestricted) {
+    log("host removed the restriction for audio or video $isAudioRestricted");
+  }
+
+  @override
+  void onHostAddRestrictionForAudioOrVideo(bool isAudioRestricted) {
+    log("host  restricted for audio or video $isAudioRestricted");
+  }
+
+  @override
+  void onRequestAudioOrVideo(bool isRequestedAudio) {
+    log("host  requested for audio or video $isRequestedAudio");
   }
 }

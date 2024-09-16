@@ -1,8 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:inapi_core_sdk/inapi_core_sdk.dart';
 import 'package:inapi_core_sdk/src/inmeet_helpers.dart';
 import 'package:inapi_core_sdk/src/models/inmeet_br_model.dart';
@@ -132,7 +131,7 @@ class InMeetClient {
   }
 
   Future<void> resumeWebCam() async {
-    await enableWebCam();
+    await enableWebcam();
   }
 
   Future<void> pauseWebCam() async {
@@ -244,294 +243,306 @@ class InMeetClient {
     };
 
     /// Listen socket io client event.
-    socketIo?.onNotification = (notification) async {
-      final socketNotification =
-          stringToSocketNotifications[notification['method']];
-      log("$socketNotification ${notification['method']}",
-          name: "Socket Nofitication");
-      log("$socketNotification ${notification['data']}",
-          name: "Socket Nofitication");
-      if (socketNotification == null) return;
-
-      switch (socketNotification) {
-        case SocketNotifications.roomReady:
-          {
-            // meetingId = notification['data']['roomTemplate']['meetingDetails']
-            //     ['meetingId'];
-            await joinRoom();
-
-            break;
-          }
-        case SocketNotifications.roomBack:
-          {
-            break;
-          }
-
-        case SocketNotifications.newConsumer:
-          final bool isScreenshare =
-              notification['data']['appData']['source'].toString() == "screen";
-          var data = notification['data'];
-          String peerId = data['peerId'];
-          InMeetPeerModel? peer =
-              peers.firstWhere((p) => p.id.contains(peerId));
-          int peerIndex = peers.indexOf(peer);
-
-          if (isScreenshare) {
-            final InMeetPeerModel newPeer = InMeetPeerModel.fromMap({
-              'id': notification['data']['peerId'],
-              'displayName':
-                  peers.contains(peer) ? peers[peerIndex].displayName : "",
-              'raisedHand': false,
-            });
-            screenSharePeers.add(newPeer);
-            screenShareConsumerIds
-                .addAll({notification['data']['id']: newPeer.id});
-
-            recvTransport!.consume(
-              id: notification['data']['id'],
-              producerId: notification['data']['producerId'],
-              kind: RTCRtpMediaTypeExtension.fromString(
-                  notification['data']['kind']),
-              rtpParameters:
-                  RtpParameters.fromMap(notification['data']['rtpParameters']),
-              appData:
-                  Map<String, dynamic>.from(notification['data']['appData']),
-              peerId: notification['data']['peerId'],
-            );
-          } else if (notification['data']['appData']['source'].toString() ==
-              "webcam") {
-            recvTransport!.consume(
-              id: notification['data']['id'],
-              producerId: notification['data']['producerId'],
-              kind: RTCRtpMediaTypeExtension.fromString(
-                  notification['data']['kind']),
-              rtpParameters:
-                  RtpParameters.fromMap(notification['data']['rtpParameters']),
-              appData:
-                  Map<String, dynamic>.from(notification['data']['appData']),
-              peerId: notification['data']['peerId'],
-            );
-          } else if (notification['data']['appData']['source'].toString() ==
-              "mic") {
-            final peerIndex = peers.indexWhere(
-                (element) => element.id == notification['data']['peerId']);
-            peers[peerIndex] =
-                peers[peerIndex].setAudioId(notification['data']['id']);
-            peers[peerIndex] = peers[peerIndex]
-                .audioStatusChange(notification['data']['producerPaused']);
-
-            recvTransport!.consume(
-              id: notification['data']['id'],
-              producerId: notification['data']['producerId'],
-              kind: RTCRtpMediaTypeExtension.fromString(
-                  notification['data']['kind']),
-              rtpParameters:
-                  RtpParameters.fromMap(notification['data']['rtpParameters']),
-              appData:
-                  Map<String, dynamic>.from(notification['data']['appData']),
-              peerId: notification['data']['peerId'],
-            );
-          }
-          break;
-        case SocketNotifications.consumerClosed:
-          String consumerId = notification['data']['consumerId'];
-          if (screenShareConsumerIds.containsKey(consumerId)) {
-            final screenSharePeer = screenSharePeers.firstWhere(
-                (element) => element.id == screenShareConsumerIds[consumerId]);
-            screenSharePeers.remove(screenSharePeer);
-            screenShareConsumerIds.remove(consumerId);
-
-            _listeners!.onScreenShareConsumerRemoved(screenSharePeer);
-          }
-
-          final InMeetPeerModel peer =
-              peers.firstWhere((p) => p.consumers.contains(consumerId));
-          final peerIndex = peers.indexOf(peer);
-          if (peer.audio?.id == consumerId) {
-            peers[peerIndex] = peers[peerIndex].removeAudio();
-
-            _listeners!.onAudioConsumerRemoved(peers[peerIndex]);
-          } else if (peer.video?.id == consumerId) {
-            final consumer = peer.video;
-            final renderer = peer.renderer;
-            peers[peerIndex] = peers[peerIndex].removeVideoAndRenderer();
-
-            consumer
-                ?.close()
-                .then((_) => Future.delayed(const Duration(microseconds: 300)))
-                .then((_) async => await renderer?.dispose());
-
-            _listeners!.onVideoConsumerRemoved(peers[peerIndex]);
-          }
-
-          break;
-
-        case SocketNotifications.consumerPaused:
-          {
-            String consumerId = notification['data']['consumerId'];
-            peerAudioPausedConsumer(consumerId, true);
-            break;
-          }
-        case SocketNotifications.consumerResumed:
-          {
-            String consumerId = notification['data']['consumerId'];
-            peerAudioPausedConsumer(consumerId, false);
-
-            break;
-          }
-
-        case SocketNotifications.newPeer:
-          {
-            final Map<String, dynamic> newPeer =
-                Map<String, dynamic>.from(notification['data']);
-            log("this is the new peer data newPeer $newPeer");
-            newPeer.addAll({});
-
-            final InMeetPeerModel peer = InMeetPeerModel.fromMap(newPeer);
-            peers.add(peer);
-
-            if (notification['data']["roleType"] == "Host") {
-              hosts.add(peer);
-            }
-
-            _listeners!.onNewPeerAdded(peer);
-
-            break;
-          }
-
-        case SocketNotifications.peerClosed:
-          {
-            String peerId = notification['data']['peerId'];
-            InMeetPeerModel peer =
-                peers.where((p) => p.id.contains(peerId)).first;
-            final peerIndex = peers.indexOf(peer);
-            peers.removeAt(peerIndex);
-
-            if (breakoutRooms.isNotEmpty) {
-              _removeBreakOutPeer(peerId);
-            }
-
-            _listeners!.onPeerRemoved(peer);
-
-            break;
-          }
-        case SocketNotifications.activeSpeaker:
-          {
-            if (notification['data']['peerId'] != null) {
-              int peerIndex = peers.indexWhere((element) =>
-                  element.id.contains(notification['data']['peerId']));
-              if (peerIndex == -1) {
-                break;
-              }
-
-              _listeners!.onActiveSpeakerChange(peers[peerIndex],
-                  (notification["data"]["volume"]).toDouble());
-            }
-
-            break;
-          }
-        case SocketNotifications.sendPeerShareRequest:
-          _listeners!.onScreenShareRequest(notification['data']['peerId']);
-          break;
-        case SocketNotifications.gotRole:
-          participantsRolesChanging(notification["data"]["peerId"],
-              notification["data"]["roleId"], true);
-          break;
-        case SocketNotifications.lostRole:
-          participantsRolesChanging(notification["data"]["peerId"],
-              notification["data"]["roleId"], false);
-          break;
-        case SocketNotifications.moderatorKick:
-          exitMeeting();
-          break;
-        case SocketNotifications.cloudRecordingStatus:
-          // _listeners!.onCloudRecordingUpdate(notification['data']['status']);
-
-          break;
-        case SocketNotifications.cloudRecordingError:
-          // _listeners!.onCloudRecordingError();
-          break;
-        case SocketNotifications.breakoutJoin:
-          breakoutRoomId = notification['data']['breakoutPeers']['id'];
-          isBreakoutRooms = true;
-
-          _listeners!.onBreakoutRoomStart(
-              notification['data']['breakoutPeers']['roomName']);
-
-          // clearingData();
-          // join(sessionId: roomId);
-
-          break;
-        case SocketNotifications.handleBrToMrByHost:
-          if (notification['data']['type'] == 'movePeerToBrToMr') {
-            breakoutRoomId = null;
-            isBreakoutRooms = false;
-            clearingData();
-            _listeners!.movingToMainRoom();
-            // join(sessionId: roomId);
-          } else {
-            if (!(breakoutRoomId == notification['data']['data']['id'])) {
-              breakoutRoomId = notification['data']['data']['id'];
-
-              // clearingData();
-              // join(sessionId: roomId);
-              _listeners!
-                  .movingBetweenRooms(notification['data']['data']['roomName']);
-            }
-          }
-
-          break;
-        case SocketNotifications.closeBreakoutRoomToMainRoom:
-          breakoutRoomId = null;
-          isBreakoutRooms = false;
-          _listeners!.onBreakoutRoomEnd();
-          // clearingData();
-          // join(sessionId: roomId);
-          break;
-        case SocketNotifications.breakoutRoomIsStopped:
-          _listeners!.onBreakoutRoomEnd();
-          break;
-        case SocketNotifications.setPeerToBrRoomList:
-          final breakoutRoom = breakoutRooms.toList();
-          final roomIndex = breakoutRoom.indexWhere((element) =>
-              element.id == notification['data']['breakoutRoomId']);
-
-          if (roomIndex != -1) {
-            final participants = List<ParticipantsList>.from(
-                breakoutRoom[roomIndex].participantsList);
-            participants.add(
-                ParticipantsList.fromJson(notification['data']['peerData']));
-            breakoutRoom[roomIndex] = breakoutRoom[roomIndex]
-                .copyWith(participantsList: participants);
-            breakoutRooms = breakoutRoom.toSet();
-            log(inMeetBrModelToJson(breakoutRoom), name: 'setPeerToBrRoomList');
-
-            _listeners!.onPeerJoinedToBreakoutRoom(
-                notification['data']['peerData']['id'],
-                notification['data']['peerData']['displayName'],
-                breakoutRoom[roomIndex].roomName);
-          }
-          break;
-        case SocketNotifications.peerLeaveOrCloseInBrRoom:
-          _removeBreakOutPeer(notification['data']['peerId']);
-          _listeners!
-              .onPeerLeavesFromBreakoutRoom(notification['data']['peerId']);
-          break;
-        case SocketNotifications.mainRoomPeerJoin:
-          final data = {
-            'id': notification['data']['id'],
-            'displayName': notification['data']['displayName']
-          };
-          _listeners!.onNewPeerJoinsinMainRoom(data);
-          break;
-        default:
-          break;
-      }
-    };
+    socketIo?.onNotification = _notificationListener;
   }
 
-  /// Join a room
-  joinRoom() async {
+  Future<void> _notificationListener(notification) async {
+    log("${notification['method']}---------------${notification['data']}",
+        name: "notification and data ");
+    final socketNotification =
+        stringToSocketNotifications[notification['method']];
+    if (socketNotification == null) return;
+
+    switch (socketNotification) {
+      case SocketNotifications.roomReady:
+        {
+          await _joinRoom();
+          _setHostControlsInitial(notification['data']['hostControlsObj']);
+          break;
+        }
+      case SocketNotifications.roomBack:
+        {
+          break;
+        }
+
+      case SocketNotifications.newConsumer:
+        final bool isScreenshare =
+            notification['data']['appData']['source'].toString() == "screen";
+        var data = notification['data'];
+        String peerId = data['peerId'];
+        InMeetPeerModel? peer = peers.firstWhere((p) => p.id.contains(peerId));
+        int peerIndex = peers.indexOf(peer);
+
+        if (isScreenshare) {
+          final InMeetPeerModel newPeer = InMeetPeerModel.fromMap({
+            'id': notification['data']['peerId'],
+            'displayName':
+                peers.contains(peer) ? peers[peerIndex].displayName : "",
+            'raisedHand': false,
+          });
+          screenSharePeers.add(newPeer);
+          screenShareConsumerIds
+              .addAll({notification['data']['id']: newPeer.id});
+
+          recvTransport!.consume(
+            id: notification['data']['id'],
+            producerId: notification['data']['producerId'],
+            kind: RTCRtpMediaTypeExtension.fromString(
+                notification['data']['kind']),
+            rtpParameters:
+                RtpParameters.fromMap(notification['data']['rtpParameters']),
+            appData: Map<String, dynamic>.from(notification['data']['appData']),
+            peerId: notification['data']['peerId'],
+          );
+        } else if (notification['data']['appData']['source'].toString() ==
+            "webcam") {
+          recvTransport!.consume(
+            id: notification['data']['id'],
+            producerId: notification['data']['producerId'],
+            kind: RTCRtpMediaTypeExtension.fromString(
+                notification['data']['kind']),
+            rtpParameters:
+                RtpParameters.fromMap(notification['data']['rtpParameters']),
+            appData: Map<String, dynamic>.from(notification['data']['appData']),
+            peerId: notification['data']['peerId'],
+          );
+        } else if (notification['data']['appData']['source'].toString() ==
+            "mic") {
+          final peerIndex = peers.indexWhere(
+              (element) => element.id == notification['data']['peerId']);
+          peers[peerIndex] =
+              peers[peerIndex].setAudioId(notification['data']['id']);
+          peers[peerIndex] = peers[peerIndex]
+              .audioStatusChange(notification['data']['producerPaused']);
+
+          recvTransport!.consume(
+            id: notification['data']['id'],
+            producerId: notification['data']['producerId'],
+            kind: RTCRtpMediaTypeExtension.fromString(
+                notification['data']['kind']),
+            rtpParameters:
+                RtpParameters.fromMap(notification['data']['rtpParameters']),
+            appData: Map<String, dynamic>.from(notification['data']['appData']),
+            peerId: notification['data']['peerId'],
+          );
+        }
+        break;
+      case SocketNotifications.consumerClosed:
+        String consumerId = notification['data']['consumerId'];
+        if (screenShareConsumerIds.containsKey(consumerId)) {
+          final screenSharePeer = screenSharePeers.firstWhere(
+              (element) => element.id == screenShareConsumerIds[consumerId]);
+          screenSharePeers.remove(screenSharePeer);
+          screenShareConsumerIds.remove(consumerId);
+
+          _listeners!.onScreenShareConsumerRemoved(screenSharePeer);
+        }
+
+        final InMeetPeerModel peer =
+            peers.firstWhere((p) => p.consumers.contains(consumerId));
+        final peerIndex = peers.indexOf(peer);
+        if (peer.audio?.id == consumerId) {
+          peers[peerIndex] = peers[peerIndex].removeAudio();
+
+          _listeners!.onAudioConsumerRemoved(peers[peerIndex]);
+        } else if (peer.video?.id == consumerId) {
+          final consumer = peer.video;
+          final renderer = peer.renderer;
+          peers[peerIndex] = peers[peerIndex].removeVideoAndRenderer();
+
+          consumer
+              ?.close()
+              .then((_) => Future.delayed(const Duration(microseconds: 300)))
+              .then((_) async => await renderer?.dispose());
+
+          _listeners!.onVideoConsumerRemoved(peers[peerIndex]);
+        }
+
+        break;
+
+      case SocketNotifications.consumerPaused:
+        {
+          String consumerId = notification['data']['consumerId'];
+          _peerAudioPausedConsumer(consumerId, true);
+          break;
+        }
+      case SocketNotifications.consumerResumed:
+        {
+          String consumerId = notification['data']['consumerId'];
+          _peerAudioPausedConsumer(consumerId, false);
+
+          break;
+        }
+
+      case SocketNotifications.newPeer:
+        {
+          final Map<String, dynamic> newPeer =
+              Map<String, dynamic>.from(notification['data']);
+          log("this is the new peer data newPeer $newPeer");
+          newPeer.addAll({});
+
+          final InMeetPeerModel peer = InMeetPeerModel.fromMap(newPeer);
+          peers.add(peer);
+
+          if (notification['data']["roleType"] == "Host") {
+            hosts.add(peer);
+          }
+
+          _listeners!.onNewPeerAdded(peer);
+
+          break;
+        }
+
+      case SocketNotifications.peerClosed:
+        {
+          String peerId = notification['data']['peerId'];
+          InMeetPeerModel peer =
+              peers.where((p) => p.id.contains(peerId)).first;
+          final peerIndex = peers.indexOf(peer);
+          peers.removeAt(peerIndex);
+
+          if (breakoutRooms.isNotEmpty) {
+            _removeBreakOutPeer(peerId);
+          }
+
+          _listeners!.onPeerRemoved(peer);
+
+          break;
+        }
+      case SocketNotifications.activeSpeaker:
+        {
+          if (notification['data']['peerId'] != null) {
+            int peerIndex = peers.indexWhere((element) =>
+                element.id.contains(notification['data']['peerId']));
+            if (peerIndex == -1) {
+              break;
+            }
+
+            _listeners!.onActiveSpeakerChange(
+                peers[peerIndex], (notification["data"]["volume"]).toDouble());
+          }
+
+          break;
+        }
+      case SocketNotifications.setHostControls:
+        final String type =
+            notification['data']['hostControlsObj']['type'].toString();
+        if (type != 'audio' && type != 'video') {
+          return;
+        }
+        if (notification['data']['hostControlsObj']['access']) {
+          _listeners?.onHostRemovedRestrictionForAudioOrVideo(type == 'audio');
+        } else {
+          _listeners?.onHostAddRestrictionForAudioOrVideo(type == 'audio');
+        }
+        break;
+      case SocketNotifications.requestPeerVideoOrAudio:
+        _listeners?.onRequestAudioOrVideo(
+            notification['data']['type'].toString() == 'audio');
+        break;
+      case SocketNotifications.sendPeerShareRequest:
+        _listeners!.onScreenShareRequest(notification['data']['peerId']);
+        break;
+      case SocketNotifications.gotRole:
+        participantsRolesChanging(notification["data"]["peerId"],
+            notification["data"]["roleId"], true);
+        break;
+      case SocketNotifications.lostRole:
+        participantsRolesChanging(notification["data"]["peerId"],
+            notification["data"]["roleId"], false);
+        break;
+      case SocketNotifications.raisedHand:
+        _raisedHand(
+            notification["data"]["peerId"], notification['data']['raisedHand']);
+        break;
+      case SocketNotifications.moderatorMuteMic:
+        await muteMic();
+        break;
+      case SocketNotifications.moderatorStopVideo:
+        await disableWebcam();
+        break;
+      case SocketNotifications.moderatorStopScreenShare:
+        await stopScreenShare();
+        break;
+      case SocketNotifications.moderatorKick:
+        exitMeeting();
+        break;
+      case SocketNotifications.cloudRecordingStatus:
+        // _listeners!.onCloudRecordingUpdate(notification['data']['status']);
+
+        break;
+      case SocketNotifications.cloudRecordingError:
+        // _listeners!.onCloudRecordingError();
+        break;
+      case SocketNotifications.breakoutJoin:
+        breakoutRoomId = notification['data']['breakoutPeers']['id'];
+        isBreakoutRooms = true;
+
+        _listeners!.onBreakoutRoomStart(
+            notification['data']['breakoutPeers']['roomName']);
+
+        break;
+      case SocketNotifications.handleBrToMrByHost:
+        if (notification['data']['type'] == 'movePeerToBrToMr') {
+          breakoutRoomId = null;
+          isBreakoutRooms = false;
+          _clearingData();
+          _listeners!.movingToMainRoom();
+        } else {
+          if (!(breakoutRoomId == notification['data']['data']['id'])) {
+            breakoutRoomId = notification['data']['data']['id'];
+            _listeners!
+                .movingBetweenRooms(notification['data']['data']['roomName']);
+          }
+        }
+
+        break;
+      case SocketNotifications.closeBreakoutRoomToMainRoom:
+        breakoutRoomId = null;
+        isBreakoutRooms = false;
+        _listeners!.onBreakoutRoomEnd();
+
+        break;
+      case SocketNotifications.breakoutRoomIsStopped:
+        _listeners!.onBreakoutRoomEnd();
+        break;
+      case SocketNotifications.setPeerToBrRoomList:
+        final breakoutRoom = breakoutRooms.toList();
+        final roomIndex = breakoutRoom.indexWhere(
+            (element) => element.id == notification['data']['breakoutRoomId']);
+
+        if (roomIndex != -1) {
+          final participants = List<ParticipantsList>.from(
+              breakoutRoom[roomIndex].participantsList);
+          participants
+              .add(ParticipantsList.fromJson(notification['data']['peerData']));
+          breakoutRoom[roomIndex] =
+              breakoutRoom[roomIndex].copyWith(participantsList: participants);
+          breakoutRooms = breakoutRoom.toSet();
+          log(inMeetBrModelToJson(breakoutRoom), name: 'setPeerToBrRoomList');
+
+          _listeners!.onPeerJoinedToBreakoutRoom(
+              notification['data']['peerData']['id'],
+              notification['data']['peerData']['displayName'],
+              breakoutRoom[roomIndex].roomName);
+        }
+        break;
+      case SocketNotifications.peerLeaveOrCloseInBrRoom:
+        _removeBreakOutPeer(notification['data']['peerId']);
+        _listeners!
+            .onPeerLeavesFromBreakoutRoom(notification['data']['peerId']);
+        break;
+      case SocketNotifications.mainRoomPeerJoin:
+        final data = {
+          'id': notification['data']['id'],
+          'displayName': notification['data']['displayName']
+        };
+        _listeners!.onNewPeerJoinsinMainRoom(data);
+        break;
+    }
+  }
+
+  _joinRoom() async {
     _listeners!.onConnectingToRoom();
 
     try {
@@ -727,7 +738,7 @@ class InMeetClient {
     }
   }
 
-  Future<void> enableWebCam([String? deviceName]) async {
+  Future<void> enableWebcam([String? deviceName]) async {
     MediaDeviceInfo? selectedDevice =
         devices!.firstWhereOrNull((element) => element.label == deviceName);
     if (selectedDevice != null) {
@@ -807,7 +818,7 @@ class InMeetClient {
     if (!clientRole.contains(ParticipantRoles.presenter)) {
       throw Exception("Participant can't share screen");
     }
-    await createScreenShareStream();
+    await _createScreenShareStream();
   }
 
   Future<void> stopScreenShare() async {
@@ -934,7 +945,7 @@ class InMeetClient {
     return stream;
   }
 
-  Future<void> createScreenShareStream() async {
+  Future<void> _createScreenShareStream() async {
     if (WebRTC.platformIsWindows) {
       await nav.desktopCapturer.getSources(types: [SourceType.Screen]);
     }
@@ -959,7 +970,7 @@ class InMeetClient {
     }
   }
 
-  Future<void> enableMic([deviceId]) async {
+  Future<void> _enableMic() async {
     if (mediasoupDevice!.canProduce(RTCRtpMediaType.RTCRtpMediaTypeAudio) ==
         false) {
       return;
@@ -1027,7 +1038,7 @@ class InMeetClient {
     }
   }
 
-  void peerAudioPausedConsumer(String consumerId, bool muted) {
+  void _peerAudioPausedConsumer(String consumerId, bool muted) {
     final peerIndex = peers.indexWhere((p) => p.audioId == consumerId);
     if (peerIndex != -1) {
       peers[peerIndex] = peers[peerIndex].audioStatusChange(muted);
@@ -1062,7 +1073,7 @@ class InMeetClient {
       } else {
         localAudioStream ??= await _createAudioStream();
       }
-      await enableMic();
+      await _enableMic();
     }
     mic?.resume();
     try {
@@ -1091,7 +1102,7 @@ class InMeetClient {
   //   Map<String, String> data = {
   //     "sessionId": roomId.toString(),
   //     "roomId": meetingId.toString(),
-  //     "hostName": "wriety.inmeet.ai"
+  //     "hostName": ""
   //   };
 
   //   socketIo?.sendEventEmitterAck('startRecording', data);
@@ -1105,6 +1116,14 @@ class InMeetClient {
 
   //   socketIo?.sendEventEmitterAck('stopRecording', data);
   // }
+
+  void _raisedHand(String peerId, bool handRaised) {
+    final index = peers.indexWhere((element) => element.id == peerId);
+    if (index != -1) {
+      peers[index] = peers[index].copyWith(raisedHand: handRaised);
+      _listeners?.onHandRaise(peerId, handRaised);
+    }
+  }
 
   void participantsRolesChanging(
       String moderatorPeerId, moderatorRoleId, bool gotRole) {
@@ -1140,7 +1159,7 @@ class InMeetClient {
     }
   }
 
-  void endMeetingForAll() async {
+  Future<void> endMeetingForAll() async {
     if (clientRole.contains(ParticipantRoles.moderator)) {
       await socketIo?.sendEventEmitter('moderator:closeMeeting', {});
       exitMeeting();
@@ -1224,12 +1243,125 @@ class InMeetClient {
     return null;
   }
 
+  Future<void> raiseHand(bool isRaiseHand) async {
+    await socketIo!.sendEventEmitter(
+        'raisedHand', {'peerId': peerId, 'raisedHand': isRaiseHand});
+  }
+
+  /// Host controlls
+
+  Future<void> muteMicForAll() async {
+    if (clientRole.contains(ParticipantRoles.moderator)) {
+      socketIo!.sendEventEmitter('moderator:muteAll', {});
+    }
+  }
+
+  Future<void> disablewebcamForAll() async {
+    if (clientRole.contains(ParticipantRoles.moderator)) {
+      socketIo!.sendEventEmitter('moderator:stopAllVideo', {});
+    }
+  }
+
+  Future<void> stopScreenShareForAll() async {
+    if (clientRole.contains(ParticipantRoles.moderator)) {
+      socketIo!.sendEventEmitter('moderator:stopAllScreenSharing', {});
+    }
+  }
+
+  Future<void> _hostMeetingControls(
+      {required String typeName,
+      required String type,
+      required bool access}) async {
+    if (!clientRole.contains(ParticipantRoles.moderator)) {
+      throw Exception('Only host can do this operations');
+    }
+    await socketIo!.sendEventEmitter(
+        'sendHostControls', {typeName: access, 'access': access, 'type': type});
+  }
+
+  Future<void> _hostParticipantControls(
+      HostParticipantControls controlType, String peerId,
+      [bool? isVideo]) async {
+    if (!clientRole.contains(ParticipantRoles.moderator)) {
+      throw Exception("Only host can do the host controls");
+    }
+    if (isVideo != null) {
+      final type = isVideo ? 'video' : 'audio';
+      await socketIo?.sendEventEmitter('moderator:requestPeerVideoOrAudio',
+          {'peerId': peerId, 'type': type});
+    } else {
+      await socketIo!.sendEventEmitter(
+          'moderator:${controlType.name}', {'peerId': peerId});
+    }
+  }
+
+  void _setHostControlsInitial(Map<String, dynamic> hostControlData) async {
+  
+    if (hostControlData['hostControlVideoControl'] == false) {
+      _listeners?.onHostAddRestrictionForAudioOrVideo(false);
+    }
+    if (hostControlData['hostControlMicroPhone'] == false) {
+      _listeners?.onHostAddRestrictionForAudioOrVideo(true);
+    }
+  }
+
+  Future<void> handleHostMeetingControls(
+      {required HostMeetingControls controlType, bool? isRestricting}) async {
+    switch (controlType) {
+      case HostMeetingControls.restrictAllAudio:
+        if (isRestricting == null) {
+          throw Exception(
+              "For doing restriction events isRestriction value is required");
+        }
+        await _hostMeetingControls(
+            typeName: 'hostControlMicroPhone',
+            type: 'audio',
+            access: !isRestricting);
+        break;
+      case HostMeetingControls.restrictAllVideo:
+        if (isRestricting == null) {
+          throw Exception(
+              "For doing restriction events isRestriction value is required");
+        }
+        await _hostMeetingControls(
+            typeName: 'hostControlVideoControl',
+            type: 'video',
+            access: !isRestricting);
+        break;
+      case HostMeetingControls.stopAllVideo:
+        await disablewebcamForAll();
+        break;
+      case HostMeetingControls.stopAllScreenshare:
+        await stopScreenShareForAll();
+        break;
+      case HostMeetingControls.muteAllMic:
+        await muteMicForAll();
+        break;
+      case HostMeetingControls.endMeetingForAll:
+        await endMeetingForAll();
+        break;
+    }
+  }
+
+  Future<void> handleHostParticipantControls(
+      {required HostParticipantControls controlType,
+      required String peerId}) async {
+    await _hostParticipantControls(
+        controlType,
+        peerId,
+        controlType == HostParticipantControls.requestPeerVideo
+            ? true
+            : controlType == HostParticipantControls.requestPeerAudio
+                ? false
+                : null);
+  }
+
   void exitMeeting() async {
-    await clearingData();
+    await _clearingData();
     _listeners!.onCallEnd();
   }
 
-  Future<void> clearingData() async {
+  Future<void> _clearingData() async {
     socketIo?.close();
     socketIo = null;
     await sendTransport?.close();
@@ -1296,7 +1428,7 @@ class InMeetClient {
   }
 
   void joinBreakoutRoom() async {
-    clearingData();
+    _clearingData();
     join(sessionId: roomId);
   }
 
@@ -1350,9 +1482,7 @@ class InMeetClient {
     _removeBreakOutPeer(peerId);
     breakoutRoomId = null;
     isBreakoutRooms = false;
-    await clearingData();
-
-    // join(sessionId: roomId);
+    await _clearingData();
   }
 
   Future<void> hostMovingToDiffRoom(String movingRoomName) async {
@@ -1375,7 +1505,7 @@ class InMeetClient {
         "currentRoomId": roomId,
         "type": "breakoutRoom"
       });
-      await clearingData();
+      await _clearingData();
       // await join(sessionId: roomId);
     } else {
       throw Exception('given moving room name incorrect');
@@ -1444,5 +1574,6 @@ class InMeetClient {
           id: peer.id, displayName: peer.displayName, isBreakoutRoom: false);
       return value;
     }
+    return null;
   }
 }

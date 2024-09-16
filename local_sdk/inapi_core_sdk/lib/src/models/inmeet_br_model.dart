@@ -45,9 +45,7 @@ class InMeetBrModel {
 
   Map<String, dynamic> toJson() => {
         "roomName": roomName,
-        "participantsList": participantsList == null
-            ? []
-            : List<dynamic>.from(participantsList.map((x) => x.toJson())),
+        "participantsList":  List<dynamic>.from(participantsList.map((x) => x.toJson())),
         "roomnameeditable": roomnameeditable,
         "id": id,
       };

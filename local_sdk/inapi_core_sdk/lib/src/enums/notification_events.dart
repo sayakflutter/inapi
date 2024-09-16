@@ -20,7 +20,13 @@ enum SocketNotifications {
   setPeerToBrRoomList,
   peerLeaveOrCloseInBrRoom,
   mainRoomPeerJoin,
-  sendPeerShareRequest
+  sendPeerShareRequest,
+  moderatorMuteMic,
+  moderatorStopVideo,
+  moderatorStopScreenShare,
+  raisedHand,
+  requestPeerVideoOrAudio,
+  setHostControls,
 }
 
 Map<String, SocketNotifications> stringToSocketNotifications = {
@@ -47,4 +53,11 @@ Map<String, SocketNotifications> stringToSocketNotifications = {
   'peerLeaveOrCloseInBrRoom': SocketNotifications.peerLeaveOrCloseInBrRoom,
   'mainRoomPeerJoin': SocketNotifications.mainRoomPeerJoin,
   'sendPeerShareRequest': SocketNotifications.sendPeerShareRequest,
+  'moderator:stopVideo': SocketNotifications.moderatorStopVideo,
+  'moderator:mute': SocketNotifications.moderatorMuteMic,
+  'moderator:stopScreenSharing': SocketNotifications.moderatorStopScreenShare,
+  'raisedHand': SocketNotifications.raisedHand,
+  'moderator:requestPeerVideoOrAudio':
+      SocketNotifications.requestPeerVideoOrAudio,
+  'setHostControls': SocketNotifications.setHostControls,
 };

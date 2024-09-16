@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
@@ -14,6 +13,7 @@ import 'peer_model.dart';
 class VcController extends GetxController {
   RTCVideoRenderer? localRenderer;
   RTCVideoRenderer? localScreenShare;
+  bool selfHandRaised = false;
   RxBool isLocalVideoPlaying = false.obs;
   RxBool isLocalAudioPlaying = false.obs;
   final inMeetClient = InMeetClient.instance;
@@ -34,19 +34,14 @@ class VcController extends GetxController {
   TextEditingController displayNameController =
       TextEditingController(text: "Aswin");
   TextEditingController userIdController =
-      TextEditingController(text: "123456789087654321");
+      TextEditingController(text: "aswin@instavc.com");
   TextEditingController sessionIdController =
-      TextEditingController(text: "66b35107fa0dbfd45b17fffd");
+      TextEditingController(text: "66d809cc4fddb23cd3027846");
 
   List<BreakOutModel> breakoutRoomsData = [];
   bool isBreakoutStarted = false;
   Map<String, List> breakoutData = {'room 1': [], 'room 2': []};
   List<Map> mainroomData = [];
-
-  // void scoketclose() {
-  //   inMeetClient.endMeetingForAll();
-  //   update();
-  // }
 
   void updateSelfRoleList(Set<ParticipantRoles> selfRoleList) {
     selfRole = selfRoleList;
@@ -81,13 +76,19 @@ class VcController extends GetxController {
     update();
   }
 
+  void raiseHandSelf(bool isRaiseHand) async {
+    await inMeetClient.raiseHand(isRaiseHand);
+    selfHandRaised = isRaiseHand;
+    update();
+  }
+
   void changeScreenShareStatus(ButtonStatus status) {
     screenShareStatus = status;
     update();
   }
 
   void screenShare() async {
-    if (!selfRole.contains(ParticipantRoles.participant)) {
+    if (!selfRole.contains(ParticipantRoles.presenter)) {
       inMeetClient.requestForScreenShare();
       return;
     }
@@ -111,6 +112,11 @@ class VcController extends GetxController {
     update();
   }
 
+  void raisedHand(String peerId, bool handRaised) {
+    peersList[peerId] = peersList[peerId]!.copyWith(isHandRaised: handRaised);
+    update();
+  }
+
   void stopScreenShare() async {
     if (screenShareStatus == ButtonStatus.loading) {
       return;
@@ -131,16 +137,18 @@ class VcController extends GetxController {
     this.selfRole = selfRole;
     for (int i = 0; i < peers.length; i++) {
       peersList[peers[i].id] = Peer(
-          audioId: peers[i].audioId,
-          renderer: peers[i].renderer,
-          audioMuted: peers[i].audioMuted,
-          displayName: peers[i].displayName,
-          id: peers[i].id,
-          roles: peers[i].role,
-          videoPaused: peers[i].videoPaused);
+        audioId: peers[i].audioId,
+        renderer: peers[i].renderer,
+        audioMuted: peers[i].audioMuted,
+        displayName: peers[i].displayName,
+        id: peers[i].id,
+        roles: peers[i].role,
+        videoPaused: peers[i].videoPaused,
+        isHandRaised: peers[i].raisedHand,
+      );
     }
     if (localRenderer != null) {
-      await inMeetClient.enableWebCam();
+      await inMeetClient.enableWebcam();
     }
     update();
   }
